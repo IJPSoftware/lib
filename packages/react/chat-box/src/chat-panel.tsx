@@ -137,8 +137,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           message,
         }),
       })
+
+      setMessage('')
     },
-    [apiEndPoint, chatID, message, sessionID],
+    [apiEndPoint, chatID, message],
   )
 
   const handleChange = React.useCallback<
@@ -198,6 +200,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             name="message"
             onChange={handleChange}
             placeholder={inputPlaceholder}
+            value={message}
           />
           <ChatPanelFormButton
             disabled={!chatID || !message}
