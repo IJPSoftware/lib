@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json.schemastore.org/eslintrc.json",
+  "env": {
+    "browser": true,
+    "node": true,
+    "es6": true
+  },
+  "settings": {
+    "next": {
+      "rootDir": ["apps/*/"]
+    }
+  },
+  "extends": ["standard", "prettier"],
+  "plugins": ["prettier", "simple-import-sort", "import", "unused-imports"],
+  "rules": {
+    "prettier/prettier": "error",
+    "arrow-body-style": ["error", "as-needed"],
+    "prefer-arrow-callback": "off",
+    "simple-import-sort/imports": "error",
+    "simple-import-sort/exports": "error",
+    "import/first": "error",
+    "import/newline-after-import": "error",
+    "import/no-duplicates": "error",
+    "unused-imports/no-unused-imports": "error",
+    "unused-imports/no-unused-vars": [
+      "warn",
+      {
+        "vars": "all",
+        "varsIgnorePattern": "^_",
+        "args": "after-used",
+        "argsIgnorePattern": "^_"
+      }
+    ]
+  },
+  "ignorePatterns": ["*.html", "*.css.d.ts", "**/node_modules/**", "**/dist/**"]
+}

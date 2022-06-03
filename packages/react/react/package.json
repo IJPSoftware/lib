@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "version": "1.0.0",
+  "name": "@ijp/react",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=18 <19",
+    "pnpm": ">=7"
+  },
+  "homepage": "",
+  "packageManager": "pnpm@7.1.6",
+  "repository": {
+    "url": "",
+    "type": "git",
+    "directory": "packages/react/chat-box"
+  },
+  "bugs": {
+    "url": ""
+  },
+  "source": "index.tsx",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "eslintConfig": {
+    "extends": [
+      "../.eslintrc"
+    ]
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "dependencies": {
+    "@ijp/react-chat-box": "workspace:*"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.18.2",
+    "@emotion/react": "^11.9.0",
+    "@emotion/styled": "^11.8.1",
+    "@mui/material": "^5.8.2",
+    "@swc/core": "^1.2.196",
+    "react": "^18.1.0",
+    "react-dom": "^18.1.0",
+    "tsup": "^6.0.1",
+    "typescript": "^4.7.2"
+  },
+  "peerDependencies": {
+    "@mui/material": ">=5",
+    "react": ">=17",
+    "react-dom": ">=17"
+  }
+}
