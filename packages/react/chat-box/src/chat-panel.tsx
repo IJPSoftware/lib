@@ -131,7 +131,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       await fetch(`${apiEndPoint}/message/${chatID}/send_message`, {
         method: 'POST',
         body: JSON.stringify({
-          sessionId: sessionID,
           message,
         }),
       })
@@ -180,7 +179,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         <ChatPanelHeaderTitle>Chat</ChatPanelHeaderTitle>
       </ChatPanelHeader>
       <ChatPanelBody ref={rootRef}>
-        {message ? (
+        {chatID ? (
           messages.map(message => (
             <ChatMessage key={message.timestamp} {...message} />
           ))
