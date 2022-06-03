@@ -58,7 +58,7 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
         {
           method: 'POST',
           headers: {
-            ContentType: 'application/json',
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             sessionId: session,
