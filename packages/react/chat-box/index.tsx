@@ -57,6 +57,9 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
         `${apiEndPoint}/${accessToken}/company_customer`,
         {
           method: 'POST',
+          headers: {
+            ContentType: 'application/json',
+          },
           body: JSON.stringify({
             sessionId: session,
             name: form?.name,

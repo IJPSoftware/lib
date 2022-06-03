@@ -130,6 +130,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
       await fetch(`${apiEndPoint}/message/${chatID}/send_message`, {
         method: 'POST',
+        headers: {
+          ContentType: 'application/json',
+        },
         body: JSON.stringify({
           message,
         }),
