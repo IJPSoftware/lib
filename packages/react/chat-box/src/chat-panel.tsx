@@ -149,6 +149,17 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     setMessage(event.target.value)
   }, [])
 
+  const handleKeyPress = React.useCallback<
+    React.EventHandler<React.KeyboardEvent>
+  >(
+    event => {
+      if (event.code === 'Space') {
+        setMessage(message + ' ')
+      }
+    },
+    [message],
+  )
+
   React.useEffect(() => {
     if (!socket.current) {
       socket.current = SocketIOClient(`${chatEndPoint}`, {
@@ -199,6 +210,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             id="message"
             name="message"
             onChange={handleChange}
+            onKeyDown={handleKeyPress}
             placeholder={inputPlaceholder}
             value={message}
           />
