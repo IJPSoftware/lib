@@ -1,10 +1,10 @@
 import { Box, Button } from '@mui/material'
 import { styled } from '@mui/material/styles'
-import React, { useRef } from 'react'
+import React from 'react'
 import SocketIOClient, { Socket } from 'socket.io-client'
 
 import { ChatMessage, Message } from './chat-message'
-import Typing from './typing'
+import { Typing } from './typing'
 
 const ChatPanelRoot = styled(Box)``
 
@@ -120,9 +120,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   agentDisconnectedMessage,
   onAgentDisconnected,
 }) => {
-  const rootRef = useRef<HTMLDivElement>(null)
-  const socket = useRef<Socket>()
-  const messagesRef = useRef<Message[]>([])
+  const rootRef = React.useRef<HTMLDivElement>(null)
+  const socket = React.useRef<Socket>()
+  const messagesRef = React.useRef<Message[]>([])
   const [chatID, setChatID] = React.useState<number>()
   const [message, setMessage] = React.useState('')
   const [messages, setMessages] = React.useState<Message[]>([])
