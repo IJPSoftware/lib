@@ -31,6 +31,7 @@ export type ChatBoxProps = {
   accessToken: string
   chatInputPlaceholder: string
   noAgentConnectedMessage: string
+  agentDisconnectedMessage: string
 }
 
 export const ChatBox: React.FC<ChatBoxProps> = ({
@@ -45,6 +46,7 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
   withForm = false,
   chatInputPlaceholder,
   noAgentConnectedMessage,
+  agentDisconnectedMessage,
 }) => {
   const [type, setType] = React.useState<'form' | 'chat' | null>(null)
   const [chatSessionID, setChatSessionID] = React.useState('')
@@ -79,6 +81,14 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
     [accessToken, apiEndPoint],
   )
 
+  const handleAgentDisconnected = React.useCallback(() => {
+    setTimeout(() => {
+      setType(null)
+      setChatSessionID('')
+      localStorage.removeItem('chatSessionID')
+    }, 5000)
+  }, [])
+
   React.useEffect(() => {
     const session = localStorage.getItem('chatSessionID') ?? undefined
     if (session || !withForm) {
@@ -100,10 +110,12 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
     if (type === 'chat' && chatSessionID)
       return (
         <ChatPanel
+          agentDisconnectedMessage={agentDisconnectedMessage}
           apiEndPoint={apiEndPoint}
           chatEndPoint={chatEndPoint}
           inputPlaceholder={chatInputPlaceholder}
           noAgentConnectedMessage={noAgentConnectedMessage}
+          onAgentDisconnected={handleAgentDisconnected}
           sessionID={chatSessionID}
           submitIcon={chatSubmitIcon}
         />

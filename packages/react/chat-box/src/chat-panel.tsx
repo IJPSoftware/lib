@@ -4,6 +4,7 @@ import React, { useRef } from 'react'
 import SocketIOClient, { Socket } from 'socket.io-client'
 
 import { ChatMessage, Message } from './chat-message'
+import Typing from './typing'
 
 const ChatPanelRoot = styled(Box)``
 
@@ -105,6 +106,8 @@ export type ChatPanelProps = {
   apiEndPoint: string
   sessionID?: string
   noAgentConnectedMessage: string
+  agentDisconnectedMessage: string
+  onAgentDisconnected?: () => void
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -114,6 +117,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   inputPlaceholder,
   sessionID,
   noAgentConnectedMessage,
+  agentDisconnectedMessage,
+  onAgentDisconnected,
 }) => {
   const rootRef = useRef<HTMLDivElement>(null)
   const socket = useRef<Socket>()
@@ -121,6 +126,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const [chatID, setChatID] = React.useState<number>()
   const [message, setMessage] = React.useState('')
   const [messages, setMessages] = React.useState<Message[]>([])
+  const [agentTyping, setAgentTyping] = React.useState(false)
+  const [agentDisconnected, setAgentDisconnected] = React.useState<Message>()
 
   const handleSubmit = React.useCallback<
     React.EventHandler<React.FormEvent | React.MouseEvent>
@@ -169,19 +176,29 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         transports: ['websocket'],
       })
 
-      socket.current.on('agent.connected', data => {
-        setChatID(data.chatSessionId)
-      })
-
-      socket.current.on('message', data => {
-        setMessages([...messagesRef.current, data])
-      })
+      socket.current
+        .on('agent.connected', data => {
+          setChatID(data.chatSessionId)
+        })
+        .on('message', data => {
+          setMessages([...messagesRef.current, data])
+        })
+        .on('agent.typing', _ => {
+          setAgentTyping(true)
+        })
+        .on('agent.stopTyping', _ => {
+          setAgentTyping(false)
+        })
+        .on('agent.completed', data => {
+          setAgentDisconnected(data)
+          onAgentDisconnected?.()
+        })
     }
 
     return () => {
       socket.current?.disconnect()
     }
-  }, [chatEndPoint, sessionID])
+  }, [chatEndPoint, onAgentDisconnected, sessionID])
 
   React.useEffect(() => {
     if (rootRef.current)
@@ -195,12 +212,20 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         <ChatPanelHeaderTitle>Chat</ChatPanelHeaderTitle>
       </ChatPanelHeader>
       <ChatPanelBody ref={rootRef}>
-        {chatID ? (
+        {chatID || !!agentDisconnected ? (
           messages.map(message => (
             <ChatMessage key={message.timestamp} {...message} />
           ))
         ) : (
           <ChatMessage message={noAgentConnectedMessage} />
+        )}
+        {agentTyping && <Typing />}
+        {agentDisconnected && (
+          <ChatMessage
+            from=" "
+            message={agentDisconnectedMessage}
+            timestamp={agentDisconnected.timestamp}
+          />
         )}
       </ChatPanelBody>
       <ChatPanelFooter>
