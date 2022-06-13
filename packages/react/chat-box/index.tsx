@@ -1,9 +1,19 @@
 import { Box } from '@mui/material'
 import { styled } from '@mui/material/styles'
+import { AnimatePresence, motion } from 'framer-motion'
 import React from 'react'
 
-import { ChatPanel } from './src/chat-panel'
-import { FormPanel, OnFormSubmit } from './src/form-panel'
+import {
+  ChatPanel,
+  ChatPanelClassNames,
+  ChatPanelTexts,
+} from './src/chat-panel'
+import {
+  FormPanel,
+  FormPanelClassNames,
+  FormPanelTexts,
+  OnFormSubmit,
+} from './src/form-panel'
 
 const ChatBoxRoot = styled(Box)`
   position: absolute;
@@ -11,43 +21,74 @@ const ChatBoxRoot = styled(Box)`
   bottom: 8px;
   width: 320px;
   z-index: 10000;
-  border-radius: 4px;
-  background-color: #181a1f;
-  overflow: hidden;
-  box-shadow: 1px 1px 4px 1px rgba(0, 0, 0, 0.25),
-    2px 2px 4px -2px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 `
 
+const ChatBoxFloatingButton = styled('button')`
+  background-color: #61afef;
+  outline: none;
+  border: none;
+  width: 48px;
+  height: 48px;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  align-self: flex-end;
+  border-radius: 50%;
+  box-shadow: 1px 1px 4px 1px rgba(0, 0, 0, 0.25),
+    2px 2px 4px -2px rgba(0, 0, 0, 0.25);
+
+  &:disabled {
+    cursor: default;
+    svg path {
+      stroke: #ffffffaa;
+    }
+  }
+
+  svg {
+    font-size: 24px;
+    path {
+      stroke: #181a1f;
+    }
+  }
+`
+
+export type ChatBoxClassNames = FormPanelClassNames &
+  ChatPanelClassNames & {
+    ChatBoxRoot?: string
+  }
+
+export type ChatBoxTexts = FormPanelTexts & ChatPanelTexts
+
 export type ChatBoxProps = {
-  chatSubmitIcon: React.ReactNode
-  onFormSubmit?: OnFormSubmit
-  formNameLabel?: React.ReactNode
-  formEmailLabel?: React.ReactNode
-  formSubmitLabel?: React.ReactNode
-  formTitle?: React.ReactNode
-  chatEndPoint: string
-  apiEndPoint: string
-  withForm?: boolean
   accessToken: string
-  chatInputPlaceholder: string
-  noAgentConnectedMessage: string
-  agentDisconnectedMessage: string
+  apiEndPoint: string
+  canClose?: boolean
+  chatEndPoint: string
+  chatSubmitIcon: React.ReactNode
+  classNames?: ChatBoxClassNames
+  floatingButtonIcon: React.ReactNode
+  onFormSubmit?: OnFormSubmit
+  texts: ChatBoxTexts
+  withForm?: boolean
 }
 
 export const ChatBox: React.FC<ChatBoxProps> = ({
-  chatSubmitIcon,
-  formNameLabel,
-  formEmailLabel,
-  formSubmitLabel,
-  formTitle,
-  chatEndPoint,
-  apiEndPoint,
   accessToken,
+  apiEndPoint,
+  canClose = true,
+  chatEndPoint,
+  chatSubmitIcon,
+  classNames,
+  floatingButtonIcon,
+  texts,
   withForm = false,
-  chatInputPlaceholder,
-  noAgentConnectedMessage,
-  agentDisconnectedMessage,
 }) => {
+  const [show, setShow] = React.useState(!canClose)
   const [type, setType] = React.useState<'form' | 'chat' | null>(null)
   const [chatSessionID, setChatSessionID] = React.useState('')
 
@@ -58,15 +99,15 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
       const data = await fetch(
         `${apiEndPoint}/${accessToken}/company_customer`,
         {
-          method: 'POST',
+          body: JSON.stringify({
+            email: form?.email,
+            name: form?.name,
+            sessionId: session,
+          }),
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            sessionId: session,
-            name: form?.name,
-            email: form?.email,
-          }),
+          method: 'POST',
         },
       ).then(res => res.json())
 
@@ -82,10 +123,10 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
   )
 
   const handleAgentDisconnected = React.useCallback(() => {
+    localStorage.removeItem('chatSessionID')
     setTimeout(() => {
       setType(null)
       setChatSessionID('')
-      localStorage.removeItem('chatSessionID')
     }, 5000)
   }, [])
 
@@ -96,46 +137,60 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
     }
   }, [handleSubmit, withForm])
 
-  const renderContent = React.useMemo(() => {
-    if (type === 'form' && withForm)
-      return (
+  const renderFloatingButton = React.useMemo(
+    () => (
+      <ChatBoxFloatingButton onClick={() => setShow(!show)}>
+        {floatingButtonIcon}
+      </ChatBoxFloatingButton>
+    ),
+    [floatingButtonIcon, show],
+  )
+
+  const Root = React.useCallback<React.FC<{ children?: React.ReactNode }>>(
+    ({ children }) => (
+      <ChatBoxRoot className={classNames?.ChatBoxRoot}>
+        {show && (
+          <AnimatePresence initial={false}>
+            <motion.div
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.2 } }}
+              initial={{ opacity: 0, y: 50, scale: 0.3 }}
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
+        )}
+        {canClose && renderFloatingButton}
+      </ChatBoxRoot>
+    ),
+    [canClose, classNames?.ChatBoxRoot, renderFloatingButton, show],
+  )
+
+  if (withForm && type === 'form')
+    return (
+      <Root>
         <FormPanel
-          emailLabel={formEmailLabel}
-          nameLabel={formNameLabel}
+          classNames={classNames}
           onSubmit={handleSubmit()}
-          submitLabel={formSubmitLabel}
-          title={formTitle}
+          texts={texts}
         />
-      )
-    if (type === 'chat' && chatSessionID)
-      return (
+      </Root>
+    )
+
+  if (chatSessionID && type === 'chat')
+    return (
+      <Root>
         <ChatPanel
-          agentDisconnectedMessage={agentDisconnectedMessage}
           apiEndPoint={apiEndPoint}
           chatEndPoint={chatEndPoint}
-          inputPlaceholder={chatInputPlaceholder}
-          noAgentConnectedMessage={noAgentConnectedMessage}
+          classNames={classNames}
           onAgentDisconnected={handleAgentDisconnected}
           sessionID={chatSessionID}
           submitIcon={chatSubmitIcon}
+          texts={texts}
         />
-      )
+      </Root>
+    )
 
-    return null
-  }, [
-    apiEndPoint,
-    chatEndPoint,
-    chatInputPlaceholder,
-    chatSessionID,
-    chatSubmitIcon,
-    formEmailLabel,
-    formNameLabel,
-    formSubmitLabel,
-    formTitle,
-    handleSubmit,
-    type,
-    withForm,
-  ])
-
-  return <ChatBoxRoot>{renderContent}</ChatBoxRoot>
+  return <Root />
 }

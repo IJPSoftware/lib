@@ -43,6 +43,7 @@
     "@emotion/styled": "^11.8.1",
     "@mui/material": "^5.8.2",
     "@swc/core": "^1.2.196",
+    "framer-motion": "^6.3.11",
     "react": "^18.1.0",
     "react-dom": "^18.1.0",
     "tsup": "^6.0.1",
@@ -50,10 +51,12 @@
   },
   "peerDependencies": {
     "@mui/material": ">=5",
+    "framer-motion": ">=6",
     "react": ">=17",
     "react-dom": ">=17"
   },
   "dependencies": {
+    "clsx": "^1.1.1",
     "socket.io-client": "^4.5.1"
   }
 }

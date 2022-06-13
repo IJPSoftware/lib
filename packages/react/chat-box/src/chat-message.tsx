@@ -1,40 +1,34 @@
 import { Box } from '@mui/material'
 import { styled } from '@mui/material/styles'
+import { motion } from 'framer-motion'
 import React from 'react'
 
 type ChatMessageRootProps = {
   isMe: boolean
 }
 
-const ChatMessageRoot = styled(Box)<ChatMessageRootProps>`
+const ChatMessageRoot = styled(motion.div)<ChatMessageRootProps>`
   max-width: 250px;
   align-self: ${props => (props.isMe ? 'flex-end' : 'flex-start')};
 `
 
-const ChatMessageBody = styled(Box)`
+type ChatMessageBodyProps = {
+  isMe: boolean
+}
+
+const ChatMessageBody = styled(Box)<ChatMessageBodyProps>`
   box-shadow: 1px 1px 4px 1px rgba(0, 0, 0, 0.25),
     2px 2px 4px -2px rgba(0, 0, 0, 0.25);
   padding: 8px;
+  background-color: ${props => (props.isMe ? '#242e39' : '#2d2f37')};
+  color: #abb2bf;
+  backdrop-filter: blur(20px);
   border-radius: 4px;
-  border: 1px solid #5c6370;
   position: relative;
   z-index: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
-
-  &::before {
-    content: '';
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    position: absolute;
-    z-index: -1;
-    background-color: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(20px);
-    border-radius: 4px;
-  }
 `
 
 const ChatMessageHeaderTitle = styled('h4')`
@@ -46,30 +40,55 @@ const ChatMessageFooter = styled('footer')`
   align-self: flex-end;
 `
 
+export type ChatMessageClassNames = {
+  ChatMessageBody?: string
+  ChatMessageFooter?: string
+  ChatMessageHeaderTitle?: string
+  ChatMessageRoot?: string
+}
+
 export type Message = {
   from?: string
-  message: string
+  message: React.ReactNode
   timestamp?: number
 }
 
-export const ChatMessage: React.FC<Message> = ({
-  message,
+export type ChatMessageProps = Message & {
+  classNames?: ChatMessageClassNames
+}
+
+export const ChatMessage: React.FC<ChatMessageProps> = ({
+  classNames,
   from,
+  message,
   timestamp,
-}) => (
-  <ChatMessageRoot isMe={!from}>
-    <ChatMessageBody>
-      {from && (
-        <header>
-          <ChatMessageHeaderTitle>{from}</ChatMessageHeaderTitle>
-        </header>
-      )}
-      <div>{message}</div>
-      {timestamp && (
-        <ChatMessageFooter>
-          <span>{new Date(timestamp * 1000).toLocaleString()}</span>
-        </ChatMessageFooter>
-      )}
-    </ChatMessageBody>
-  </ChatMessageRoot>
-)
+}) => {
+  const isMe = React.useMemo(() => !from && !!timestamp, [from, timestamp])
+
+  return (
+    <ChatMessageRoot
+      animate={{ x: [isMe ? 30 : -30, 0] }}
+      className={classNames?.ChatMessageRoot}
+      isMe={isMe}
+      transition={{ ease: 'easeInOut', duration: 0.25 }}
+    >
+      <ChatMessageBody className={classNames?.ChatMessageBody} isMe={isMe}>
+        {from && (
+          <header>
+            <ChatMessageHeaderTitle
+              className={classNames?.ChatMessageHeaderTitle}
+            >
+              {from}
+            </ChatMessageHeaderTitle>
+          </header>
+        )}
+        <div>{message}</div>
+        {timestamp && (
+          <ChatMessageFooter className={classNames?.ChatMessageFooter}>
+            <span>{new Date(timestamp * 1000).toLocaleString()}</span>
+          </ChatMessageFooter>
+        )}
+      </ChatMessageBody>
+    </ChatMessageRoot>
+  )
+}

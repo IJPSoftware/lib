@@ -7,6 +7,12 @@ const FormPanelRoot = styled(Box)`
   flex-direction: column;
   gap: 8px;
   padding: 32px 16px;
+
+  border-radius: 4px;
+  background-color: #181a1f;
+  box-shadow: 1px 1px 4px 1px rgba(0, 0, 0, 0.25),
+    2px 2px 4px -2px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
 `
 
 const FormTitle = styled('h2')`
@@ -42,22 +48,38 @@ const FormButton = styled(Button)`
   background-color: #61afef;
 `
 
-export type OnFormSubmit = (form?: { name?: string; email?: string }) => void
+export type OnFormSubmit = (form?: { email?: string; name?: string }) => void
+
+export type FormPanelTexts = {
+  formEmailLabel?: React.ReactNode
+  formNameLabel?: React.ReactNode
+  formSubmitLabel?: React.ReactNode
+  formTitle?: React.ReactNode
+}
+
+export type FormPanelClassNames = {
+  FormButton?: string
+  FormInput?: string
+  FormLabel?: string
+  FormPanelRoot?: string
+  FormTitle?: string
+}
 
 export type FormPanelProps = {
+  classNames?: FormPanelClassNames
   onSubmit?: OnFormSubmit
-  nameLabel: React.ReactNode
-  emailLabel: React.ReactNode
-  submitLabel: React.ReactNode
-  title: React.ReactNode
+  texts?: FormPanelTexts
 }
 
 export const FormPanel: React.FC<FormPanelProps> = ({
+  classNames,
   onSubmit,
-  nameLabel,
-  emailLabel,
-  submitLabel,
-  title,
+  texts = {
+    formEmailLabel: 'emailLabel',
+    formNameLabel: 'nameLabel',
+    formSubmitLabel: 'submitLabel',
+    formTitle: 'title',
+  },
 }) => {
   const [name, setName] = React.useState('')
   const [email, setEmail] = React.useState('')
@@ -85,22 +107,30 @@ export const FormPanel: React.FC<FormPanelProps> = ({
   }, [onSubmit, name, email])
 
   return (
-    <FormPanelRoot>
-      <FormTitle>{title}</FormTitle>
-      <FormLabel>
-        <span>{nameLabel}</span>
-        <FormInput id="name" name="name" onChange={handleChange} />
-      </FormLabel>
-      <FormLabel>
-        <span>{emailLabel}</span>
+    <FormPanelRoot className={classNames?.FormPanelRoot}>
+      <FormTitle className={classNames?.FormTitle}>{texts.formTitle}</FormTitle>
+      <FormLabel className={classNames?.FormLabel}>
+        <span>{texts.formNameLabel}</span>
         <FormInput
+          className={classNames?.FormInput}
+          id="name"
+          name="name"
+          onChange={handleChange}
+        />
+      </FormLabel>
+      <FormLabel className={classNames?.FormLabel}>
+        <span>{texts.formEmailLabel}</span>
+        <FormInput
+          className={classNames?.FormInput}
           id="email"
           name="email"
           onChange={handleChange}
           type="email"
         />
       </FormLabel>
-      <FormButton onClick={handleSubmit}>{submitLabel}</FormButton>
+      <FormButton className={classNames?.FormButton} onClick={handleSubmit}>
+        {texts.formSubmitLabel}
+      </FormButton>
     </FormPanelRoot>
   )
 }
