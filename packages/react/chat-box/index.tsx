@@ -67,12 +67,15 @@ export type ChatBoxTexts = FormPanelTexts & ChatPanelTexts
 export type ChatBoxProps = {
   accessToken: string
   apiEndPoint: string
-  canClose?: boolean
   chatEndPoint: string
   chatSubmitIcon: React.ReactNode
   classNames?: ChatBoxClassNames
+  defaultShow?: boolean
   floatingButtonIcon: React.ReactNode
+  onClose?: () => void
   onFormSubmit?: OnFormSubmit
+  onOpen?: () => void
+  open?: boolean
   texts: ChatBoxTexts
   withForm?: boolean
 }
@@ -80,15 +83,18 @@ export type ChatBoxProps = {
 export const ChatBox: React.FC<ChatBoxProps> = ({
   accessToken,
   apiEndPoint,
-  canClose = true,
   chatEndPoint,
   chatSubmitIcon,
   classNames,
+  defaultShow = false,
   floatingButtonIcon,
+  onClose,
+  onOpen,
+  open,
   texts,
   withForm = false,
 }) => {
-  const [show, setShow] = React.useState(!canClose)
+  const [show, setShow] = React.useState(defaultShow)
   const [type, setType] = React.useState<'form' | 'chat' | null>(null)
   const [chatSessionID, setChatSessionID] = React.useState('')
 
@@ -130,6 +136,12 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
     }, 5000)
   }, [])
 
+  const handleShow = React.useCallback(() => {
+    const newShow = !show
+    newShow ? onOpen?.() : onClose?.()
+    setShow(newShow)
+  }, [onClose, onOpen, show])
+
   React.useEffect(() => {
     const session = localStorage.getItem('chatSessionID') ?? undefined
     if (session || !withForm) {
@@ -137,14 +149,11 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
     }
   }, [handleSubmit, withForm])
 
-  const renderFloatingButton = React.useMemo(
-    () => (
-      <ChatBoxFloatingButton onClick={() => setShow(!show)}>
-        {floatingButtonIcon}
-      </ChatBoxFloatingButton>
-    ),
-    [floatingButtonIcon, show],
-  )
+  React.useEffect(() => {
+    if (typeof open !== 'undefined' && open !== show) {
+      setShow(open)
+    }
+  }, [open, show])
 
   const Root = React.useCallback<React.FC<{ children?: React.ReactNode }>>(
     ({ children }) => (
@@ -160,10 +169,12 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
             </motion.div>
           </AnimatePresence>
         )}
-        {canClose && renderFloatingButton}
+        <ChatBoxFloatingButton onClick={handleShow}>
+          {floatingButtonIcon}
+        </ChatBoxFloatingButton>
       </ChatBoxRoot>
     ),
-    [canClose, classNames?.ChatBoxRoot, renderFloatingButton, show],
+    [classNames?.ChatBoxRoot, show, handleShow, floatingButtonIcon],
   )
 
   if (withForm && type === 'form')
