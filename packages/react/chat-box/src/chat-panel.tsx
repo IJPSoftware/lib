@@ -1,10 +1,9 @@
 import { Box, Button } from '@mui/material'
 import { styled } from '@mui/material/styles'
-import clsx from 'clsx'
 import React from 'react'
-import SocketIOClient, { Socket } from 'socket.io-client'
 
 import { ChatMessage, Message } from './chat-message'
+import { apiFetch, Result } from './helper'
 import { Typing } from './typing'
 
 const ChatPanelRoot = styled(Box)`
@@ -28,18 +27,6 @@ const ChatPanelHeader = styled(Box)`
 
 const ChatPanelHeaderTitle = styled('h4')`
   margin: 0;
-`
-
-const ChatPanelHeaderAgentStatus = styled('h5')`
-  background-color: #181a1f;
-  padding: 4px 8px;
-  border-radius: 4px;
-  margin: 0;
-  color: #e06c75;
-
-  &.connected {
-    color: #98c379;
-  }
 `
 
 const ChatPanelBody = styled(Box)`
@@ -140,46 +127,44 @@ export type ChatPanelClassNames = {
 }
 
 export type ChatPanelTexts = {
-  chatAgentConnected?: React.ReactNode
-  chatAgentDisconnected?: React.ReactNode
+  chatAgentCloseSession?: React.ReactNode
   chatInputPlaceholder?: string
-  chatNoAgentConnected?: React.ReactNode
+  chatSessionNotOpened?: React.ReactNode
   chatTitle?: React.ReactNode
 }
 
 export type ChatPanelProps = {
+  agentDisconnected?: Message
+  agentTyping: boolean
   apiEndPoint: string
-  chatEndPoint: string
+  chatID?: number
   classNames?: ChatPanelClassNames
-  onAgentDisconnected?: () => void
-  sessionID?: string
+  messages: Message[]
+  onTempMessage: (message: Message) => void
+  sessionID: string
   submitIcon: React.ReactNode
   texts?: ChatPanelTexts
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
   apiEndPoint,
-  chatEndPoint,
-  classNames,
-  onAgentDisconnected,
   sessionID,
+  classNames,
+  chatID,
+  messages,
   submitIcon,
+  agentTyping,
+  agentDisconnected,
+  onTempMessage,
   texts = {
-    chatNoAgentConnected: 'chatNoAgentConnected',
-    chatAgentConnected: 'chatAgentConnected',
-    chatAgentDisconnected: 'chatAgentDisconnected',
+    chatSessionNotOpened: 'chatSessionNotOpened',
+    chatAgentCloseSession: 'chatAgentCloseSession',
     chatInputPlaceholder: 'chatInputPlaceholder',
     chatTitle: 'chatTitle',
   },
 }) => {
   const rootRef = React.useRef<HTMLDivElement>(null)
-  const socket = React.useRef<Socket>()
-  const messagesRef = React.useRef<Message[]>([])
-  const [chatID, setChatID] = React.useState<number>()
   const [message, setMessage] = React.useState('')
-  const [messages, setMessages] = React.useState<Message[]>([])
-  const [agentTyping, setAgentTyping] = React.useState(false)
-  const [agentDisconnected, setAgentDisconnected] = React.useState<Message>()
 
   const handleSubmit = React.useCallback<
     React.EventHandler<React.FormEvent | React.MouseEvent>
@@ -187,19 +172,25 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     async event => {
       event.preventDefault()
 
-      await fetch(`${apiEndPoint}/message/${chatID}/send_message`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      if (chatID) {
+        await Result.try(
+          apiFetch(`${apiEndPoint}/message/${chatID}/send_message`, sessionID, {
+            method: 'POST',
+            body: JSON.stringify({
+              message,
+            }),
+          }),
+        )
+      } else {
+        onTempMessage({
           message,
-        }),
-      })
+          timestamp: Date.now(),
+        })
+      }
 
       setMessage('')
     },
-    [apiEndPoint, chatID, message],
+    [apiEndPoint, chatID, message, onTempMessage, sessionID],
   )
 
   const handleChange = React.useCallback<
@@ -225,43 +216,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   )
 
   React.useEffect(() => {
-    if (!socket.current) {
-      socket.current = SocketIOClient(`${chatEndPoint}`, {
-        query: {
-          name: sessionID,
-        },
-        transports: ['websocket'],
-      })
-
-      socket.current
-        .on('agent.connected', data => {
-          setChatID(data.chatSessionId)
-        })
-        .on('message', data => {
-          setMessages([...messagesRef.current, data])
-        })
-        .on('agent.typing', _ => {
-          setAgentTyping(true)
-        })
-        .on('agent.stopTyping', _ => {
-          setAgentTyping(false)
-        })
-        .on('agent.completed', data => {
-          setAgentDisconnected(data)
-          onAgentDisconnected?.()
-        })
-    }
-
-    return () => {
-      socket.current?.disconnect()
-    }
-  }, [chatEndPoint, onAgentDisconnected, sessionID])
-
-  React.useEffect(() => {
-    messagesRef.current = [...messages]
-  }, [messages])
-
-  React.useEffect(() => {
     if (rootRef.current)
       rootRef.current.scrollTop = rootRef.current?.scrollHeight
   }, [agentDisconnected, messages, agentTyping])
@@ -272,21 +226,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         <ChatPanelHeaderTitle className={classNames?.ChatPanelHeaderTitle}>
           {texts.chatTitle}
         </ChatPanelHeaderTitle>
-        <ChatPanelHeaderAgentStatus
-          className={clsx(classNames?.ChatPanelHeaderAgentStatus, {
-            connected: !!chatID && !agentDisconnected,
-          })}
-        >
-          {chatID && !agentDisconnected
-            ? texts.chatAgentConnected
-            : texts.chatNoAgentConnected}
-        </ChatPanelHeaderAgentStatus>
       </ChatPanelHeader>
       <ChatPanelBody className={classNames?.ChatPanelBody} ref={rootRef}>
-        {(chatID || !!agentDisconnected) &&
-          messages.map(message => (
-            <Message key={message.timestamp} {...message} />
-          ))}
+        {!chatID && <Message key={0} message={texts.chatSessionNotOpened} />}
+        {messages.map(message => (
+          <Message key={message.timestamp} {...message} />
+        ))}
+        {agentDisconnected && (
+          <Message key={0} message={texts.chatAgentCloseSession} />
+        )}
         {agentTyping && <Message message={<Typing />} />}
       </ChatPanelBody>
       <ChatPanelFooter className={classNames?.ChatPanelFooter}>
@@ -296,7 +244,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         >
           <ChatPanelFormInput
             className={classNames?.ChatPanelFormInput}
-            disabled={!chatID}
             id="message"
             name="message"
             onChange={handleChange}

@@ -2,7 +2,9 @@ import { Box } from '@mui/material'
 import { styled } from '@mui/material/styles'
 import { AnimatePresence, motion } from 'framer-motion'
 import React from 'react'
+import SocketIOClient, { Socket } from 'socket.io-client'
 
+import { Message } from './src/chat-message'
 import {
   ChatPanel,
   ChatPanelClassNames,
@@ -14,6 +16,7 @@ import {
   FormPanelTexts,
   OnFormSubmit,
 } from './src/form-panel'
+import { apiFetch, Result } from './src/helper'
 
 const ChatBoxRoot = styled(Box)`
   position: absolute;
@@ -64,45 +67,56 @@ export type ChatBoxClassNames = FormPanelClassNames &
 
 export type ChatBoxTexts = FormPanelTexts & ChatPanelTexts
 
-export type ChatBoxProps = {
+export type ChatBoxConfig = {
   accessToken: string
   apiEndPoint: string
   chatEndPoint: string
+}
+
+export type ChatBoxProps = {
   chatSubmitIcon: React.ReactNode
   classNames?: ChatBoxClassNames
+  config: ChatBoxConfig
   defaultShow?: boolean
   floatingButtonIcon: React.ReactNode
+  onAgentsOnline?: (online: boolean) => void
   onClose?: () => void
   onFormSubmit?: OnFormSubmit
   onOpen?: () => void
   open?: boolean
+  show?: boolean
   texts: ChatBoxTexts
   withForm?: boolean
 }
 
 export const ChatBox: React.FC<ChatBoxProps> = ({
-  accessToken,
-  apiEndPoint,
-  chatEndPoint,
   chatSubmitIcon,
   classNames,
-  defaultShow = false,
+  config: { accessToken, apiEndPoint, chatEndPoint },
   floatingButtonIcon,
+  onAgentsOnline,
   onClose,
   onOpen,
-  open,
+  open = false,
+  show = false,
   texts,
   withForm = false,
 }) => {
-  const [show, setShow] = React.useState(defaultShow)
+  const socket = React.useRef<Socket>()
   const [type, setType] = React.useState<'form' | 'chat' | null>(null)
-  const [chatSessionID, setChatSessionID] = React.useState('')
+  const [sessionID, setSessionID] = React.useState('')
+  const messagesRef = React.useRef<Message[]>([])
+  const [chatSessionID, setChatSessionID] = React.useState<number>()
+  const [messages, setMessages] = React.useState<Message[]>([])
+  const [agentTyping, setAgentTyping] = React.useState(false)
+  const [agentDisconnected, setAgentDisconnected] = React.useState<Message>()
+  const [tempMessages, setTempMessages] = React.useState<Message[]>([])
 
   const handleSubmit = React.useCallback<(session?: string) => OnFormSubmit>(
     session => async form => {
-      setChatSessionID('')
+      setSessionID('')
 
-      const data = await fetch(
+      const data = await apiFetch(
         `${apiEndPoint}/${accessToken}/company_customer`,
         {
           body: JSON.stringify({
@@ -110,74 +124,243 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
             name: form?.name,
             sessionId: session,
           }),
-          headers: {
-            'Content-Type': 'application/json',
-          },
           method: 'POST',
         },
-      ).then(res => res.json())
-
-      console.log(data.session)
+      )
 
       if (data.session) {
-        localStorage.setItem('chatSessionID', data.session)
-        setChatSessionID(data.session)
-        setType('chat')
+        localStorage.setItem('sessionID', data.session)
+        setSessionID(data.session)
       }
     },
     [accessToken, apiEndPoint],
   )
 
-  const handleAgentDisconnected = React.useCallback(() => {
+  const handleClearChatSessionID = React.useCallback(() => {
     localStorage.removeItem('chatSessionID')
-    setTimeout(() => {
-      setType(null)
-      setChatSessionID('')
-    }, 5000)
+    setChatSessionID(undefined)
+  }, [])
+
+  const handleAgentDisconnected = React.useCallback(
+    (data: Message) => {
+      setAgentDisconnected(data)
+      setTimeout(() => {
+        setType(null)
+        handleClearChatSessionID()
+        setMessages([])
+        messagesRef.current = []
+        setAgentTyping(false)
+        setAgentDisconnected(undefined)
+        onClose?.()
+      }, 5000)
+    },
+    [handleClearChatSessionID, onClose],
+  )
+
+  const handleSetChatSessionID = React.useCallback(async (id: number) => {
+    setChatSessionID(id)
+    localStorage.setItem('chatSessionID', id.toString())
   }, [])
 
   const handleShow = React.useCallback(() => {
-    const newShow = !show
-    newShow ? onOpen?.() : onClose?.()
-    setShow(newShow)
-  }, [onClose, onOpen, show])
+    open ? onClose?.() : onOpen?.()
+  }, [onClose, onOpen, open])
 
-  React.useEffect(() => {
-    const session = localStorage.getItem('chatSessionID') ?? undefined
+  const handleTempMessage = React.useCallback(
+    (message: Message) => {
+      setTempMessages([...tempMessages, message])
+      setMessages([...messages, message])
+    },
+    [messages, tempMessages],
+  )
+
+  const getSessionID = React.useCallback(() => {
+    const session = localStorage.getItem('sessionID') ?? undefined
     if (session || !withForm) {
       handleSubmit(session)()
     }
   }, [handleSubmit, withForm])
 
-  React.useEffect(() => {
-    if (typeof open !== 'undefined' && open !== show) {
-      setShow(open)
+  const loadChatSessionID = React.useCallback(() => {
+    const chatSession = localStorage.getItem('chatSessionID') ?? undefined
+    if (chatSession) {
+      setChatSessionID(+chatSession)
     }
-  }, [open, show])
+    return chatSession
+  }, [])
+
+  const getMessages = React.useCallback(async () => {
+    if (sessionID && chatSessionID && messages.length === 0 && open) {
+      const [newMessages, error] = await Result.try<{ messages: Message[] }>(
+        apiFetch(`${apiEndPoint}/message/${chatSessionID}`, sessionID),
+      )
+
+      if (error) {
+        handleClearChatSessionID()
+      } else if (newMessages && newMessages.messages) {
+        setMessages(
+          newMessages.messages.map(el => ({
+            message: el.message,
+            from: el.from === 'anonymous' ? undefined : el.from,
+            timestamp: new Date(el.timestamp ?? 0).getTime() / 1000,
+          })),
+        )
+      }
+    }
+  }, [
+    apiEndPoint,
+    chatSessionID,
+    messages.length,
+    open,
+    sessionID,
+    handleClearChatSessionID,
+  ])
+
+  React.useEffect(() => {
+    if (onAgentsOnline) {
+      getSessionID()
+    }
+  }, [getSessionID, onAgentsOnline])
+
+  React.useEffect(() => {
+    if (!onAgentsOnline && show) {
+      getSessionID()
+    }
+  }, [getSessionID, onAgentsOnline, show])
+
+  React.useEffect(() => {
+    messagesRef.current = [...messages]
+  }, [messages])
+
+  React.useEffect(() => {
+    getMessages()
+  }, [getMessages])
+
+  React.useEffect(() => {
+    if (open && sessionID) {
+      const id = loadChatSessionID()
+      if (!id) {
+        apiFetch(`${apiEndPoint}/company_customer/request_support`, sessionID, {
+          method: 'POST',
+        })
+      }
+    }
+  }, [apiEndPoint, sessionID, open, chatSessionID, loadChatSessionID])
+
+  React.useEffect(() => {
+    if (chatSessionID && tempMessages.length) {
+      const messages = [...tempMessages]
+      setTempMessages([])
+      Result.try(
+        apiFetch(
+          `${apiEndPoint}/message/${chatSessionID}/send_bulk_messages`,
+          sessionID,
+          {
+            body: JSON.stringify({
+              messages,
+            }),
+            method: 'POST',
+          },
+        ),
+      )
+    }
+  }, [apiEndPoint, chatSessionID, sessionID, tempMessages])
+
+  React.useEffect(() => {
+    if (!socket.current && sessionID && (onAgentsOnline || show)) {
+      socket.current = SocketIOClient(`${chatEndPoint}`, {
+        query: {
+          name: sessionID,
+        },
+        transports: ['websocket'],
+      })
+    }
+
+    if (socket.current) {
+      if (onAgentsOnline) {
+        socket.current.on('agents.online', ({ online }) => {
+          onAgentsOnline(online)
+        })
+      }
+
+      if (show) {
+        socket.current
+          .on('agent.connected', data => {
+            if (Array.isArray(data.chatSessionId)) {
+              handleSetChatSessionID(data.chatSessionId.at(-1))
+            } else {
+              handleSetChatSessionID(data.chatSessionId)
+            }
+          })
+          .on('message', data => {
+            setMessages([...messagesRef.current, data])
+          })
+          .on('agent.typing', _ => {
+            setAgentTyping(true)
+          })
+          .on('agent.stopTyping', _ => {
+            setAgentTyping(false)
+          })
+          .on('agent.completed', data => {
+            handleAgentDisconnected(data)
+          })
+      }
+    }
+  }, [
+    chatEndPoint,
+    sessionID,
+    handleAgentDisconnected,
+    onAgentsOnline,
+    show,
+    handleSetChatSessionID,
+  ])
+
+  React.useEffect(
+    () => () => {
+      if (!show && !open && !sessionID && !chatSessionID) {
+        socket.current?.disconnect()
+      }
+    },
+    [chatSessionID, open, sessionID, show],
+  )
+
+  React.useEffect(() => {
+    if (open) {
+      setType(withForm ? 'form' : 'chat')
+    }
+  }, [open, withForm])
 
   const Root = React.useCallback<React.FC<{ children?: React.ReactNode }>>(
     ({ children }) => (
       <ChatBoxRoot className={classNames?.ChatBoxRoot}>
         {show && (
-          <AnimatePresence initial={false}>
-            <motion.div
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.2 } }}
-              initial={{ opacity: 0, y: 50, scale: 0.3 }}
-            >
-              {children}
-            </motion.div>
-          </AnimatePresence>
+          <>
+            {open && (
+              <AnimatePresence initial={false}>
+                <motion.div
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{
+                    opacity: 0,
+                    scale: 0.5,
+                    transition: { duration: 0.2 },
+                  }}
+                  initial={{ opacity: 0, y: 50, scale: 0.3 }}
+                >
+                  {children}
+                </motion.div>
+              </AnimatePresence>
+            )}
+            <ChatBoxFloatingButton onClick={handleShow}>
+              {floatingButtonIcon}
+            </ChatBoxFloatingButton>
+          </>
         )}
-        <ChatBoxFloatingButton onClick={handleShow}>
-          {floatingButtonIcon}
-        </ChatBoxFloatingButton>
       </ChatBoxRoot>
     ),
-    [classNames?.ChatBoxRoot, show, handleShow, floatingButtonIcon],
+    [classNames?.ChatBoxRoot, show, open, handleShow, floatingButtonIcon],
   )
 
-  if (withForm && type === 'form')
+  if (sessionID && withForm && type === 'form')
     return (
       <Root>
         <FormPanel
@@ -188,15 +371,18 @@ export const ChatBox: React.FC<ChatBoxProps> = ({
       </Root>
     )
 
-  if (chatSessionID && type === 'chat')
+  if (sessionID && type === 'chat')
     return (
       <Root>
         <ChatPanel
+          agentDisconnected={agentDisconnected}
+          agentTyping={agentTyping}
           apiEndPoint={apiEndPoint}
-          chatEndPoint={chatEndPoint}
+          chatID={chatSessionID}
           classNames={classNames}
-          onAgentDisconnected={handleAgentDisconnected}
-          sessionID={chatSessionID}
+          messages={messages}
+          onTempMessage={handleTempMessage}
+          sessionID={sessionID}
           submitIcon={chatSubmitIcon}
           texts={texts}
         />
